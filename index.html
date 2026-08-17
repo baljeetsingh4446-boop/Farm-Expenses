@@ -135,7 +135,7 @@
         <div class="eyebrow">Farm Ledger</div>
         <div class="total"><span id="monthTotalHeader">₹0</span><small>this month</small></div>
       </div>
-      <div class="storage-tag">💾 <span>Saved on this device</span></div>
+      <div class="storage-tag" id="syncTag">☁️ <span id="syncTagText">Connecting…</span></div>
     </div>
   </header>
 
@@ -148,7 +148,31 @@
   </nav>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB9uts7jAr6qWEWyER2vtMLQPjOGDJwgJ4",
+  authDomain: "farm-expenses-99788.firebaseapp.com",
+  projectId: "farm-expenses-99788",
+  storageBucket: "farm-expenses-99788.firebasestorage.app",
+  messagingSenderId: "612925224352",
+  appId: "1:612925224352:web:1f6c06c08bb421b3c1e0c5"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
+const expensesCol = collection(db, "expenses");
+
 (function () {
   "use strict";
 
@@ -159,10 +183,7 @@
     { id: "other", label: "Other Expenses", short: "Other", color: "var(--other)", hex: "#9C8C74", emoji: "•••" }
   ];
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var STORAGE_KEY = "farmLedgerExpensesV1";
-
   function catById(id) { for (var i=0;i<CATEGORIES.length;i++) if (CATEGORIES[i].id===id) return CATEGORIES[i]; return null; }
-  function uid() { return Date.now() + "-" + Math.random().toString(36).slice(2,8); }
   function todayISO() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
   function formatRupee(n) { n = Number(n||0); return "₹" + Math.round(n).toLocaleString("en-IN"); }
   function formatDateLabel(iso) {
@@ -172,19 +193,9 @@
     return day + " " + mon + " " + d.getFullYear();
   }
 
-  function loadExpenses() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) { return []; }
-  }
-  function saveExpenses(list) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
-  }
-
   var state = {
     tab: "add",
-    expenses: loadExpenses(),
+    expenses: [],
     form: { date: todayISO(), category: null, amount: "", note: "", error: "" },
     viewYear: new Date().getFullYear(),
     viewMonth: new Date().getMonth(),
@@ -380,9 +391,8 @@
         var amt = parseFloat(f.amount);
         if (!amt || amt <= 0) { f.error = "Enter an amount"; render(); return; }
         f.error = "";
-        var entry = { id: uid(), date: f.date, category: f.category, amount: amt, note: (f.note||"").trim() };
-        state.expenses.unshift(entry);
-        saveExpenses(state.expenses);
+        var entry = { date: f.date, category: f.category, amount: amt, note: (f.note||"").trim(), createdAt: Date.now() };
+        addDoc(expensesCol, entry).catch(function(err){ console.error("add failed", err); });
         state.form = { date: todayISO(), category: null, amount: "", note: "", error: "" };
         render();
         var btn = document.getElementById("saveBtn");
@@ -409,8 +419,7 @@
       document.querySelectorAll("[data-del]").forEach(function(btn){
         btn.addEventListener("click", function(){
           var id = btn.getAttribute("data-del");
-          state.expenses = state.expenses.filter(function(e){ return e.id !== id; });
-          saveExpenses(state.expenses);
+          deleteDoc(doc(db, "expenses", id)).catch(function(err){ console.error("delete failed", err); });
           state.confirmDelete = null;
           render();
         });
@@ -437,6 +446,27 @@
   document.getElementById("navSummary").addEventListener("click", function(){ state.tab = "summary"; render(); });
 
   render();
+
+  onSnapshot(
+    expensesCol,
+    function (snapshot) {
+      state.expenses = snapshot.docs
+        .map(function (d) {
+          var data = d.data();
+          data.id = d.id;
+          return data;
+        })
+        .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      var tagText = document.getElementById("syncTagText");
+      if (tagText) tagText.textContent = snapshot.metadata.fromCache ? "Offline — will sync" : "Synced live";
+      render();
+    },
+    function (err) {
+      console.error("sync error", err);
+      var tagText = document.getElementById("syncTagText");
+      if (tagText) tagText.textContent = "Offline — will sync";
+    }
+  );
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
