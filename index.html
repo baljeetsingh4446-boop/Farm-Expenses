@@ -31,14 +31,14 @@
   .display { font-family: Georgia, "Times New Roman", serif; font-weight: 700; }
   #app { max-width: 448px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
 
-  header { padding: 20px 20px 16px; border-bottom: 1px solid var(--card-border); }
+  header { padding: 20px 20px 16px; border-bottom: 1px solid var(--card-border); transition: filter 0.2s; }
   .header-row { display: flex; align-items: center; justify-content: space-between; }
   .eyebrow { font-size: 13px; letter-spacing: 2px; color: var(--gold); font-weight: 700; text-transform: uppercase; }
   .total { font-size: 30px; font-weight: 800; line-height: 1.1; margin-top: 2px; }
   .total small { font-size: 13px; color: var(--cream-dim); font-weight: 500; margin-left: 8px; font-family: inherit; }
   .storage-tag { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8FBF8A; }
 
-  main { flex: 1; padding: 18px 16px 90px; overflow-y: auto; }
+  main { flex: 1; padding: 18px 16px 90px; overflow-y: auto; transition: filter 0.2s; }
 
   .section-title { font-size: 20px; font-weight: 700; margin-bottom: 14px; }
 
@@ -46,7 +46,7 @@
     display: block; font-size: 12px; font-weight: 600; color: var(--cream-dim);
     margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
   }
-  input[type="date"], input[type="number"], input[type="text"] {
+  input[type="date"], input[type="number"], input[type="text"], input[type="password"] {
     width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--card-border);
     background: var(--card); color: var(--cream); font-size: 15px; outline: none;
   }
@@ -124,27 +124,58 @@
   nav.tabbar button.active { color: var(--gold); font-weight: 700; }
   nav.tabbar button .nav-icon { font-size: 19px; }
 
-  .install-hint { font-size: 12px; color: var(--cream-dim); text-align: center; margin-top: 18px; line-height: 1.5; }
+  /* PIN Lock Styles */
+  .pin-overlay {
+    position: fixed; inset: 0; background: var(--bg-deep); z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .pin-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 320px;
+  }
+  .pin-card input {
+    text-align: center; font-size: 24px; letter-spacing: 6px; padding: 10px; margin-top: 8px;
+  }
+  .lock-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
+
+<!-- Security PIN Screen -->
+<div id="pinOverlay" class="pin-overlay">
+  <div class="pin-card">
+    <div class="eyebrow" style="text-align: center; margin-bottom: 8px;">Farm Ledger</div>
+    <div style="font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 12px;">Enter PIN</div>
+    <input type="password" id="pinInput" placeholder="••••" maxlength="6" pattern="[0-9]*" inputmode="numeric" />
+    <div id="pinError" class="error-text" style="text-align: center; min-height: 18px;"></div>
+    <button id="unlockBtn" class="save-btn" style="margin-top: 14px;">🔓 Unlock Ledger</button>
+  </div>
+</div>
+
 <div id="app">
   <header>
     <div class="header-row">
       <div>
-        <div class="eyebrow">Farm Ledger</div>
+        <div class="lock-header">
+          <div class="eyebrow">Farm Ledger</div>
+        </div>
         <div class="total"><span id="monthTotalHeader">₹0</span><small>this month</small></div>
       </div>
-      <div class="storage-tag" id="syncTag">☁️ <span id="syncTagText">Connecting…</span></div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+        <button id="lockAppBtn" style="background: transparent; border: 1px solid var(--card-border); color: var(--cream-dim); border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;">🔒 Lock</button>
+        <div class="storage-tag" id="syncTag">☁️ <span id="syncTagText">Connecting…</span></div>
+      </div>
     </div>
   </header>
 
   <main id="main"></main>
 
   <nav class="tabbar">
-    <button id="navAdd" class="active">➕<span class="nav-icon"></span>Add</button>
-    <button id="navRecords">📋<span class="nav-icon"></span>Records</button>
-    <button id="navSummary">🥧<span class="nav-icon"></span>Summary</button>
+    <button id="navAdd" class="active"><span class="nav-icon">➕</span>Add</button>
+    <button id="navRecords"><span class="nav-icon">📋</span>Records</button>
+    <button id="navSummary"><span class="nav-icon">🥧</span>Summary</button>
   </nav>
 </div>
 
@@ -175,6 +206,56 @@ const expensesCol = collection(db, "expenses");
 
 (function () {
   "use strict";
+
+  // PIN Lock Logic
+  const TARGET_PIN = "6638";
+  var isUnlocked = sessionStorage.getItem("farm_unlocked") === "true";
+
+  function updateLockState() {
+    var overlay = document.getElementById("pinOverlay");
+    var appMain = document.getElementById("main");
+    var header = document.querySelector("header");
+    var tabbar = document.querySelector("nav.tabbar");
+
+    if (!isUnlocked) {
+      overlay.style.display = "flex";
+      if (appMain) appMain.style.filter = "blur(12px)";
+      if (header) header.style.filter = "blur(12px)";
+      if (tabbar) tabbar.style.pointerEvents = "none";
+    } else {
+      overlay.style.display = "none";
+      if (appMain) appMain.style.filter = "none";
+      if (header) header.style.filter = "none";
+      if (tabbar) tabbar.style.pointerEvents = "auto";
+    }
+  }
+
+  document.getElementById("unlockBtn").addEventListener("click", function() {
+    var entered = document.getElementById("pinInput").value;
+    var errorEl = document.getElementById("pinError");
+    if (entered === TARGET_PIN) {
+      isUnlocked = true;
+      sessionStorage.setItem("farm_unlocked", "true");
+      document.getElementById("pinInput").value = "";
+      errorEl.textContent = "";
+      updateLockState();
+    } else {
+      errorEl.textContent = "Incorrect PIN. Try again.";
+      document.getElementById("pinInput").value = "";
+    }
+  });
+
+  document.getElementById("pinInput").addEventListener("keyup", function(e) {
+    if (e.key === "Enter") {
+      document.getElementById("unlockBtn").click();
+    }
+  });
+
+  document.getElementById("lockAppBtn").addEventListener("click", function() {
+    isUnlocked = false;
+    sessionStorage.removeItem("farm_unlocked");
+    updateLockState();
+  });
 
   var CATEGORIES = [
     { id: "diesel", label: "Diesel", short: "Diesel", color: "var(--diesel)", hex: "#5C8FBF", emoji: "⛽" },
@@ -445,6 +526,7 @@ const expensesCol = collection(db, "expenses");
   document.getElementById("navRecords").addEventListener("click", function(){ state.tab = "records"; render(); });
   document.getElementById("navSummary").addEventListener("click", function(){ state.tab = "summary"; render(); });
 
+  updateLockState();
   render();
 
   onSnapshot(
