@@ -85,7 +85,6 @@
   .month-nav button { background: var(--card); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 12px; color: var(--cream); cursor: pointer; font-size: 16px; }
   .month-center { text-align: center; }
   .month-center .m-title { font-size: 18px; font-weight: 700; }
-  .month-center .m-total { font-size: 12px; color: var(--cream-dim); }
 
   .day-label { font-size: 12px; color: var(--cream-dim); margin-bottom: 6px; font-weight: 600; }
   .expense-row {
@@ -298,7 +297,7 @@ const expensesCol = collection(db, "expenses");
     form: { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" },
     viewYear: new Date().getFullYear(),
     viewMonth: new Date().getMonth(),
-    recordsType: "all", // "all", "expense", "income"
+    recordsType: "all",
     showProfitBox: false,
     confirmDelete: null,
     range: "month"
@@ -331,7 +330,6 @@ const expensesCol = collection(db, "expenses");
     return state.range === "all" ? state.expenses : monthExpenses();
   }
 
-  // ---------- render ----------
   function render() {
     var now = new Date();
     var thisMonthItems = state.expenses.filter(function(e){
@@ -518,7 +516,6 @@ const expensesCol = collection(db, "expenses");
     return div.innerHTML;
   }
 
-  // ---------- handlers ----------
   function attachHandlers() {
     if (state.tab === "add") {
       var dateEl = document.getElementById("fDate");
@@ -558,24 +555,37 @@ const expensesCol = collection(db, "expenses");
         if (!amt || amt <= 0) { f.error = "Enter a valid amount"; render(); return; }
         f.error = "";
 
-        var entry = {
+        var payload = {
           type: f.type,
           date: f.date,
           category: f.category,
           amount: amt,
-          note: (f.note||"").trim(),
-          createdAt: state.editingId ? (state.expenses.find(function(x){return x.id===state.editingId;})||{}).createdAt || Date.now() : Date.now()
+          note: (f.note || "").trim()
         };
 
         if (state.editingId) {
-          updateDoc(doc(db, "expenses", state.editingId), entry).catch(function(err){ console.error("update failed", err); });
+          var editId = state.editingId;
           state.editingId = null;
-        } else {
-          addDoc(expensesCol, entry).catch(function(err){ console.error("add failed", err); });
-        }
+          
+          var idx = state.expenses.findIndex(function(x) { return x.id === editId; });
+          if (idx !== -1) {
+            state.expenses[idx] = Object.assign({}, state.expenses[idx], payload);
+          }
+          
+          state.form = { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" };
+          render();
 
-        state.form = { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" };
-        render();
+          updateDoc(doc(db, "expenses", editId), payload).catch(function(err){ 
+            console.error("Update failed:", err); 
+          });
+        } else {
+          payload.createdAt = Date.now();
+          addDoc(expensesCol, payload).catch(function(err){ 
+            console.error("Add failed:", err); 
+          });
+          state.form = { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" };
+          render();
+        }
       });
     }
 
