@@ -80,7 +80,6 @@
     background: var(--gold); color: #1F2A17; font-weight: 700; font-size: 15px;
     display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
   }
-  .save-btn.flash { background: #4C7A3D; color: #fff; }
 
   .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .month-nav button { background: var(--card); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 12px; color: var(--cream); cursor: pointer; font-size: 16px; }
@@ -99,14 +98,14 @@
   .expense-row .info .note { font-size: 12px; color: var(--cream-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .expense-row .amt { font-weight: 700; font-size: 14px; }
   .expense-row .amt.income { color: #81C784; }
-  .expense-row .amt.expense { color: var(--cream); }
+  .expense-row .amt.expense { color: #FF7A59; }
 
   .action-wrap { display: flex; gap: 4px; }
   .icon-btn { background: transparent; border: none; color: var(--cream-dim); cursor: pointer; padding: 4px; font-size: 15px; }
   .confirm-yes { background: var(--labour); border: none; border-radius: 6px; padding: 6px 8px; color: #fff; cursor: pointer; }
   .confirm-no { background: transparent; border: 1px solid var(--card-border); border-radius: 6px; padding: 6px 8px; color: var(--cream-dim); cursor: pointer; }
 
-  .empty { text-align: center; color: var(--cream-dim); margin-top: 50px; font-size: 14px; }
+  .empty { text-align: center; color: var(--cream-dim); margin-top: 40px; font-size: 14px; }
 
   .pnl-card {
     background: var(--card); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 18px;
@@ -167,7 +166,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Farm Ledger</div>
-        <div class="total"><span id="monthTotalHeader">₹0</span><small id="headerSub">net profit</small></div>
+        <div class="total"><span id="monthTotalHeader">₹0</span><small id="headerSub">expenses</small></div>
       </div>
       <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
         <button id="lockAppBtn" style="background: transparent; border: 1px solid var(--card-border); color: var(--cream-dim); border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;">🔒 Lock</button>
@@ -214,7 +213,6 @@ const expensesCol = collection(db, "expenses");
 (function () {
   "use strict";
 
-  // PIN Lock Logic
   const TARGET_PIN = "6638";
   var isUnlocked = sessionStorage.getItem("farm_unlocked") === "true";
 
@@ -270,9 +268,9 @@ const expensesCol = collection(db, "expenses");
   ];
 
   var INCOME_CATEGORIES = [
-    { id: "paddy_sale", label: "Paddy Sale", short: "Paddy", color: "#4CAF50", hex: "#4CAF50", emoji: "🌾" },
+    { id: "vegetables", label: "Vegetables", short: "Vegetables", color: "#4CAF50", hex: "#4CAF50", emoji: "🥦" },
     { id: "cotton_sale", label: "Cotton Sale", short: "Cotton", color: "#00BCD4", hex: "#00BCD4", emoji: "☁️" },
-    { id: "subsidy", label: "Govt Subsidy", short: "Subsidy", color: "#FF9800", hex: "#FF9800", emoji: "🏛️" },
+    { id: "papaya_banana", label: "Papaya / Banana", short: "Papaya/Banana", color: "#FFC107", hex: "#FFC107", emoji: "🍌" },
     { id: "other_income", label: "Other Income", short: "Other Inc.", color: "#81C784", hex: "#81C784", emoji: "💰" }
   ];
 
@@ -300,6 +298,8 @@ const expensesCol = collection(db, "expenses");
     form: { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" },
     viewYear: new Date().getFullYear(),
     viewMonth: new Date().getMonth(),
+    recordsType: "all", // "all", "expense", "income"
+    showProfitBox: false,
     confirmDelete: null,
     range: "month"
   };
@@ -341,8 +341,23 @@ const expensesCol = collection(db, "expenses");
     var stats = getFinancials(thisMonthItems);
     
     var headerEl = document.getElementById("monthTotalHeader");
-    headerEl.textContent = formatRupee(stats.profit);
-    headerEl.style.color = stats.profit >= 0 ? "#81C784" : "#FF7A59";
+    var headerSub = document.getElementById("headerSub");
+
+    if (state.tab === "add") {
+      if (state.form.type === "income") {
+        headerEl.textContent = formatRupee(stats.income);
+        headerEl.style.color = "#81C784";
+        headerSub.textContent = "total income (this month)";
+      } else {
+        headerEl.textContent = formatRupee(stats.expense);
+        headerEl.style.color = "#FF7A59";
+        headerSub.textContent = "total expenses (this month)";
+      }
+    } else {
+      headerEl.textContent = formatRupee(stats.expense);
+      headerEl.style.color = "#FF7A59";
+      headerSub.textContent = "total expenses (this month)";
+    }
 
     ["navAdd","navRecords","navSummary"].forEach(function(id){ document.getElementById(id).classList.remove("active"); });
     document.getElementById("nav" + state.tab[0].toUpperCase() + state.tab.slice(1)).classList.add("active");
@@ -367,7 +382,7 @@ const expensesCol = collection(db, "expenses");
         '<span>' + c.label + '</span></button>';
     }).join("");
 
-    var titleText = state.editingId ? "Edit Transaction" : "Record Transaction";
+    var titleText = state.editingId ? "Edit Entry" : "Record Entry";
     var saveText = state.editingId ? "✏️ Update Entry" : (f.type === "income" ? "💰 Save Income" : "➕ Save Expense");
 
     return '' +
@@ -383,19 +398,44 @@ const expensesCol = collection(db, "expenses");
       '<label class="field-label" style="margin-top:16px">Amount</label>' +
       '<div class="amount-wrap"><span>₹</span><input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="' + f.amount + '" /></div>' +
       '<label class="field-label" style="margin-top:16px">Note (optional)</label>' +
-      '<input type="text" id="fNote" placeholder="e.g. Paddy sale to mandi, tractor fuel" value="' + (f.note||"") + '" />' +
+      '<input type="text" id="fNote" placeholder="e.g. Vegetables sale, tractor fuel" value="' + (f.note||"") + '" />' +
       (f.error ? '<div class="error-text">' + f.error + '</div>' : '') +
       '<button class="save-btn" id="saveBtn">' + saveText + '</button>' +
       (state.editingId ? '<button type="button" id="cancelEditBtn" style="margin-top:10px; width:100%; padding:10px; background:transparent; border:1px solid var(--card-border); color:var(--cream-dim); border-radius:10px; cursor:pointer;">Cancel Edit</button>' : '');
   }
 
   function renderRecords() {
-    var items = monthExpenses();
-    var stats = getFinancials(items);
+    var rawItems = monthExpenses();
+    var stats = getFinancials(rawItems);
+
+    var items = rawItems.filter(function(e){
+      if (state.recordsType === "expense") return e.type !== "income";
+      if (state.recordsType === "income") return e.type === "income";
+      return true;
+    });
+
     var groups = groupByDate(items);
 
+    var typeFilterToggle = '' +
+      '<div class="type-toggle-row" style="margin-bottom:12px;">' +
+        '<button type="button" class="type-toggle-btn' + (state.recordsType === "all" ? " active-expense" : "") + '" id="filterAll">All</button>' +
+        '<button type="button" class="type-toggle-btn' + (state.recordsType === "expense" ? " active-expense" : "") + '" id="filterExpense">💸 Expenses</button>' +
+        '<button type="button" class="type-toggle-btn' + (state.recordsType === "income" ? " active-income" : "") + '" id="filterIncome">💰 Income</button>' +
+      '</div>';
+
+    var profitBtn = '<button id="btnToggleProfit" style="width:100%; padding:10px; margin-bottom:14px; background:var(--card); border:1px solid var(--card-border); color:var(--gold); font-weight:700; border-radius:10px; cursor:pointer;">' +
+      (state.showProfitBox ? "🔒 Hide Net Profit" : "📊 Check Net Profit") +
+      '</button>';
+
+    var profitCard = state.showProfitBox ? '' +
+      '<div class="pnl-card" style="margin-bottom:14px; background:var(--bg-deep);">' +
+        '<div class="pnl-row"><span>Month Income:</span><strong style="color:#81C784;">+' + formatRupee(stats.income) + '</strong></div>' +
+        '<div class="pnl-row"><span>Month Expense:</span><strong style="color:#FF7A59;">-' + formatRupee(stats.expense) + '</strong></div>' +
+        '<div class="pnl-row total"><span>Net Profit:</span><strong style="color:' + (stats.profit >= 0 ? "#81C784" : "#FF7A59") + ';">' + formatRupee(stats.profit) + '</strong></div>' +
+      '</div>' : '';
+
     var body = groups.length === 0
-      ? '<div class="empty">No entries logged for this month yet.</div>'
+      ? '<div class="empty">No entries logged for this selection.</div>'
       : groups.map(function(g){
           var d = g[0], list = g[1];
           var rows = list.map(function(e){
@@ -423,10 +463,9 @@ const expensesCol = collection(db, "expenses");
     return '' +
       '<div class="month-nav">' +
       '<button id="prevMonth">‹</button>' +
-      '<div class="month-center"><div class="m-title">' + MONTHS[state.viewMonth] + ' ' + state.viewYear + '</div>' +
-      '<div class="m-total" style="color:' + (stats.profit >= 0 ? "#81C784" : "#FF7A59") + ';">Net: ' + formatRupee(stats.profit) + '</div></div>' +
+      '<div class="month-center"><div class="m-title">' + MONTHS[state.viewMonth] + ' ' + state.viewYear + '</div></div>' +
       '<button id="nextMonth">›</button>' +
-      '</div>' + body;
+      '</div>' + typeFilterToggle + profitBtn + profitCard + body;
   }
 
   function renderSummary() {
@@ -543,6 +582,15 @@ const expensesCol = collection(db, "expenses");
     if (state.tab === "records") {
       document.getElementById("prevMonth").addEventListener("click", function(){ shiftMonth(-1); });
       document.getElementById("nextMonth").addEventListener("click", function(){ shiftMonth(1); });
+
+      document.getElementById("filterAll").addEventListener("click", function(){ state.recordsType = "all"; render(); });
+      document.getElementById("filterExpense").addEventListener("click", function(){ state.recordsType = "expense"; render(); });
+      document.getElementById("filterIncome").addEventListener("click", function(){ state.recordsType = "income"; render(); });
+
+      document.getElementById("btnToggleProfit").addEventListener("click", function(){
+        state.showProfitBox = !state.showProfitBox;
+        render();
+      });
 
       document.querySelectorAll("[data-edit]").forEach(function(btn){
         btn.addEventListener("click", function(){
