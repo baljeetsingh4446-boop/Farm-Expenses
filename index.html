@@ -390,11 +390,11 @@ const expensesCol = collection(db, "expenses");
         '<button type="button" class="type-toggle-btn' + (f.type === "income" ? " active-income" : "") + '" id="btnTypeIncome">💰 Income</button>' +
       '</div>' +
       '<label class="field-label">Date</label>' +
-      '<input type="date" id="fDate" value="' + f.date + '" max="' + todayISO() + '" />' +
+      '<input type="date" id="fDate" value="' + (f.date || todayISO()) + '" max="' + todayISO() + '" />' +
       '<label class="field-label" style="margin-top:16px">Category</label>' +
       '<div class="cat-grid">' + catButtons + '</div>' +
       '<label class="field-label" style="margin-top:16px">Amount</label>' +
-      '<div class="amount-wrap"><span>₹</span><input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="' + f.amount + '" /></div>' +
+      '<div class="amount-wrap"><span>₹</span><input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="' + (f.amount !== undefined ? f.amount : "") + '" /></div>' +
       '<label class="field-label" style="margin-top:16px">Note (optional)</label>' +
       '<input type="text" id="fNote" placeholder="e.g. Vegetables sale, tractor fuel" value="' + (f.note||"") + '" />' +
       (f.error ? '<div class="error-text">' + f.error + '</div>' : '') +
@@ -522,9 +522,9 @@ const expensesCol = collection(db, "expenses");
       var amtEl = document.getElementById("fAmount");
       var noteEl = document.getElementById("fNote");
 
-      dateEl.addEventListener("change", function(){ state.form.date = dateEl.value; });
-      amtEl.addEventListener("input", function(){ state.form.amount = amtEl.value; });
-      noteEl.addEventListener("input", function(){ state.form.note = noteEl.value; });
+      if (dateEl) dateEl.addEventListener("change", function(){ state.form.date = dateEl.value; });
+      if (amtEl) amtEl.addEventListener("input", function(){ state.form.amount = amtEl.value; });
+      if (noteEl) noteEl.addEventListener("input", function(){ state.form.note = noteEl.value; });
 
       document.getElementById("btnTypeExpense").addEventListener("click", function(){
         state.form.type = "expense"; state.form.category = null; render();
@@ -549,18 +549,21 @@ const expensesCol = collection(db, "expenses");
       }
 
       document.getElementById("saveBtn").addEventListener("click", function(){
-        var f = state.form;
-        if (!f.category) { f.error = "Pick a category"; render(); return; }
-        var amt = parseFloat(f.amount);
-        if (!amt || amt <= 0) { f.error = "Enter a valid amount"; render(); return; }
-        f.error = "";
+        var dateVal = dateEl ? dateEl.value : state.form.date;
+        var amtVal = amtEl ? amtEl.value : state.form.amount;
+        var noteVal = noteEl ? noteEl.value : state.form.note;
+
+        if (!state.form.category) { state.form.error = "Pick a category"; render(); return; }
+        var amt = parseFloat(amtVal);
+        if (!amt || amt <= 0) { state.form.error = "Enter a valid amount"; render(); return; }
+        state.form.error = "";
 
         var payload = {
-          type: f.type,
-          date: f.date,
-          category: f.category,
+          type: state.form.type || "expense",
+          date: dateVal,
+          category: state.form.category,
           amount: amt,
-          note: (f.note || "").trim()
+          note: (noteVal || "").trim()
         };
 
         if (state.editingId) {
@@ -653,7 +656,14 @@ const expensesCol = collection(db, "expenses");
     render();
   }
 
-  document.getElementById("navAdd").addEventListener("click", function(){ state.tab = "add"; render(); });
+  document.getElementById("navAdd").addEventListener("click", function(){ 
+    if (state.tab !== "add") {
+      state.editingId = null;
+      state.form = { type: "expense", date: todayISO(), category: null, amount: "", note: "", error: "" };
+    }
+    state.tab = "add"; 
+    render(); 
+  });
   document.getElementById("navRecords").addEventListener("click", function(){ state.tab = "records"; render(); });
   document.getElementById("navSummary").addEventListener("click", function(){ state.tab = "summary"; render(); });
 
