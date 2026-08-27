@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Farm Ledger</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#1F3325" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<style>
+  :root {
+    --bg: #1F3325;
+    --bg-deep: #182A1D;
+    --card: #2A4030;
+    --card-border: #3B5540;
+    --cream: #F3EEDD;
+    --cream-dim: #C9C4AE;
+    --gold: #D4A017;
+    --diesel: #5C8FBF;
+    --labour: #C1440E;
+    --fert: #5A8F4C;
+    --other: #9C8C74;
+    --cotton: #DCD7C9;
+    --papaya: #E8A33D;
+    --veg: #4CAF50;
+    --other-income: #D4A017;
+    --income-accent: #8FBF8A;
+    --loss: #E2A05A;
+    --other-source: #8F7FBF;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--cream);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100%;
+  }
+  .display { font-family: Georgia, "Times New Roman", serif; font-weight: 700; }
+  #app { max-width: 448px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header { padding: 20px 20px 16px; border-bottom: 1px solid var(--card-border); }
+  .header-row { display: flex; align-items: center; justify-content: space-between; }
+  .eyebrow { font-size: 13px; letter-spacing: 2px; color: var(--gold); font-weight: 700; text-transform: uppercase; }
+  .total { font-size: 30px; font-weight: 800; line-height: 1.1; margin-top: 2px; color: var(--income-accent); }
+  .total.negative { color: var(--loss); }
+  .total small { font-size: 13px; color: var(--cream-dim); font-weight: 500; margin-left: 8px; font-family: inherit; }
+  .storage-tag { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8FBF8A; }
+
+  main { flex: 1; padding: 18px 16px 90px; overflow-y: auto; }
+
+  .section-title { font-size: 20px; font-weight: 700; margin-bottom: 14px; }
+
+  label.field-label {
+    display: block; font-size: 12px; font-weight: 600; color: var(--cream-dim);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  input[type="date"], input[type="number"], input[type="text"] {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--card-border);
+    background: var(--card); color: var(--cream); font-size: 15px; outline: none;
+  }
+  input::placeholder { color: var(--cream-dim); opacity: 0.7; }
+
+  .type-toggle { margin-bottom: 18px; }
+  .type-toggle .toggle-btn { flex: 1; text-align: center; }
+
+  .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cat-btn {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    padding: 12px; border-radius: 10px; border: 1px solid var(--card-border);
+    background: var(--card); color: var(--cream); cursor: pointer; text-align: left; font-size: 13px; font-weight: 600;
+  }
+  .cat-btn .dot { width: 18px; height: 18px; border-radius: 5px; }
+  .cat-btn.active { border-width: 2px; }
+
+  .amount-wrap { position: relative; }
+  .amount-wrap span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--cream-dim); font-size: 17px; }
+  .amount-wrap input { padding-left: 30px; }
+
+  .error-text { color: #E2A05A; font-size: 13px; margin-top: 10px; }
+
+  .save-btn {
+    margin-top: 20px; width: 100%; padding: 14px; border-radius: 10px; border: none;
+    background: var(--gold); color: #1F2A17; font-weight: 700; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+  }
+  .save-btn.flash { background: #4C7A3D; }
+
+  .cancel-edit-btn {
+    margin-top: 10px; width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border);
+    background: transparent; color: var(--cream-dim); font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-nav button { background: var(--card); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 12px; color: var(--cream); cursor: pointer; font-size: 16px; }
+  .month-center { text-align: center; }
+  .month-center .m-title { font-size: 18px; font-weight: 700; }
+  .month-center .m-total { font-size: 12px; color: var(--cream-dim); }
+
+  .day-label { font-size: 12px; color: var(--cream-dim); margin-bottom: 6px; font-weight: 600; }
+  .expense-row {
+    display: flex; align-items: center; gap: 12px; background: var(--card);
+    border: 1px solid var(--card-border); border-radius: 10px; padding: 11px 12px; margin-bottom: 8px;
+  }
+  .expense-row .icon-box { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+  .expense-row .info { flex: 1; min-width: 0; }
+  .expense-row .info .cat-name { font-size: 14px; font-weight: 600; }
+  .expense-row .info .note { font-size: 12px; color: var(--cream-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .expense-row .row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .expense-row .amt { font-weight: 700; font-size: 14px; }
+  .row-actions { display: flex; align-items: center; gap: 2px; }
+  .edit-btn, .del-btn { background: transparent; border: none; color: var(--cream-dim); cursor: pointer; padding: 4px; font-size: 15px; }
+  .confirm-wrap { display: flex; gap: 4px; }
+  .confirm-yes { background: var(--labour); border: none; border-radius: 6px; padding: 6px 8px; color: #fff; cursor: pointer; }
+  .confirm-no { background: transparent; border: 1px solid var(--card-border); border-radius: 6px; padding: 6px 8px; color: var(--cream-dim); cursor: pointer; }
+
+  .empty { text-align: center; color: var(--cream-dim); margin-top: 50px; font-size: 14px; }
+
+  .toggle-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .toggle-btn { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--card-border); background: transparent; color: var(--cream-dim); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .toggle-btn.active { border-color: var(--gold); background: rgba(212,160,23,0.13); color: var(--gold); }
+
+  .donut-wrap { position: relative; height: 240px; display: flex; align-items: center; justify-content: center; }
+  .donut-center { position: absolute; text-align: center; }
+  .donut-center .amt { font-size: 22px; font-weight: 800; }
+  .donut-center .lbl { font-size: 11px; color: var(--cream-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+  .legend-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--card-border); }
+  .legend-row .icon-box { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .legend-row .name { flex: 1; font-size: 14px; font-weight: 600; }
+  .legend-row .pct { font-size: 13px; color: var(--cream-dim); width: 40px; text-align: right; }
+  .legend-row .val { font-weight: 700; font-size: 14px; width: 90px; text-align: right; }
+
+  .chart-section { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--card-border); }
+
+  nav.tabbar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 448px;
+    background: var(--bg-deep); border-top: 1px solid var(--card-border); display: flex;
+    padding: 8px 8px calc(env(safe-area-inset-bottom, 8px) + 8px);
+  }
+  nav.tabbar button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0;
+    background: transparent; border: none; color: var(--cream-dim); cursor: pointer; font-size: 11px; font-weight: 500;
+  }
+  nav.tabbar button.active { color: var(--gold); font-weight: 700; }
+  nav.tabbar button .nav-icon { font-size: 19px; }
+
+  .install-hint { font-size: 12px; color: var(--cream-dim); text-align: center; margin-top: 18px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Farm Ledger</div>
+        <div class="total" id="totalWrap"><span id="monthTotalHeader">₹0</span><small>net this month</small></div>
+      </div>
+      <div class="storage-tag" id="syncTag">☁️ <span id="syncTagText">Connecting…</span></div>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <nav class="tabbar">
+    <button id="navAdd" class="active">➕<span class="nav-icon"></span>Add</button>
+    <button id="navRecords">📋<span class="nav-icon"></span>Records</button>
+    <button id="navSummary">🥧<span class="nav-icon"></span>Summary</button>
+  </nav>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB9uts7jAr6qWEWyER2vtMLQPjOGDJwgJ4",
+  authDomain: "farm-expenses-99788.firebaseapp.com",
+  projectId: "farm-expenses-99788",
+  storageBucket: "farm-expenses-99788.firebasestorage.app",
+  messagingSenderId: "612925224352",
+  appId: "1:612925224352:web:1f6c06c08bb421b3c1e0c5"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
+const expensesCol = collection(db, "expenses");
+const incomesCol = collection(db, "incomes");
+const othersCol = collection(db, "others");
+
+(function () {
+  "use strict";
+
+  var CATEGORIES_BY_TYPE = {
+    expense: [
+      { id: "diesel", label: "Diesel", short: "Diesel", color: "var(--diesel)", hex: "#5C8FBF", emoji: "⛽" },
+      { id: "labour", label: "Labour", short: "Labour", color: "var(--labour)", hex: "#C1440E", emoji: "👷" },
+      { id: "fertilizer", label: "Fertilizers & Chemicals", short: "Fert. & Chem.", color: "var(--fert)", hex: "#5A8F4C", emoji: "🌱" },
+      { id: "other", label: "Other Expenses", short: "Other", color: "var(--other)", hex: "#9C8C74", emoji: "•••" }
+    ],
+    income: [
+      { id: "cotton", label: "Cotton", short: "Cotton", color: "var(--cotton)", hex: "#DCD7C9", emoji: "☁️" },
+      { id: "papaya_banana", label: "Papaya / Banana", short: "Papaya/Banana", color: "var(--papaya)", hex: "#E8A33D", emoji: "🍌" },
+      { id: "vegetables", label: "Vegetables", short: "Vegetables", color: "var(--veg)", hex: "#4CAF50", emoji: "🥬" },
+      { id: "other_income", label: "Other Income", short: "Other Income", color: "var(--other-income)", hex: "#D4A017", emoji: "💰" }
+    ]
+  };
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  function catById(type, id) {
+    var list = CATEGORIES_BY_TYPE[type];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function collectionNameFor(type) { return type === "expense" ? "expenses" : (type === "income" ? "incomes" : "others"); }
+  function todayISO() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function formatRupee(n) { n = Number(n||0); return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  function formatDateLabel(iso) {
+    var d = new Date(iso + "T00:00:00");
+    var day = d.getDate();
+    var mon = MONTHS[d.getMonth()].slice(0,3);
+    return day + " " + mon + " " + d.getFullYear();
+  }
+
+  var state = {
+    tab: "add",
+    type: "expense",
+    expenses: [],
+    incomes: [],
+    others: [],
+    form: { date: todayISO(), category: null, source: "", amount: "", note: "", error: "" },
+    editId: null,
+    viewYear: new Date().getFullYear(),
+    viewMonth: new Date().getMonth(),
+    confirmDelete: null,
+    range: "month"
+  };
+
+  function currentTypeItems() { return state.type === "expense" ? state.expenses : (state.type === "income" ? state.incomes : state.others); }
+
+  function thisMonthTotalFor(list) {
+    var now = new Date();
+    return list.filter(function(e){
+      var d = new Date(e.date+"T00:00:00");
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    }).reduce(function(s,e){return s+e.amount;},0);
+  }
+
+  function thisMonthNet() {
+    return thisMonthTotalFor(state.incomes) - thisMonthTotalFor(state.expenses);
+  }
+
+  function monthItems() {
+    return currentTypeItems().filter(function(e){
+      var d = new Date(e.date+"T00:00:00");
+      return d.getFullYear()===state.viewYear && d.getMonth()===state.viewMonth;
+    }).sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+  }
+
+  function groupByDate(list) {
+    var map = {}, order = [];
+    list.forEach(function(e){
+      if (!map[e.date]) { map[e.date] = []; order.push(e.date); }
+      map[e.date].push(e);
+    });
+    order.sort(function(a,b){ return a<b?1:-1; });
+    return order.map(function(d){ return [d, map[d]]; });
+  }
+
+  function summarySource() {
+    return state.range === "all" ? currentTypeItems() : monthItems();
+  }
+
+  function categoryTotals(items, type) {
+    var cats = CATEGORIES_BY_TYPE[type];
+    return cats.map(function(c){
+      var value = items.filter(function(e){return e.category===c.id;}).reduce(function(s,e){return s+e.amount;},0);
+      return { id:c.id, name:c.short, value:value, color:c.hex };
+    }).filter(function(d){ return d.value > 0; });
+  }
+
+  var SOURCE_PALETTE = ["#8F7FBF", "#D4A017", "#5C8FBF", "#5A8F4C", "#C1440E", "#E8A33D", "#4CAF50", "#DCD7C9"];
+  function sourceTotals(items) {
+    var map = {}, order = [];
+    items.forEach(function(e){
+      var key = (e.source || "Other").trim() || "Other";
+      if (!map[key]) { map[key] = 0; order.push(key); }
+      map[key] += e.amount;
+    });
+    return order.map(function(name, i){
+      return { id: name, name: name, value: map[name], color: SOURCE_PALETTE[i % SOURCE_PALETTE.length] };
+    }).filter(function(d){ return d.value > 0; });
+  }
+
+  // ---------- render ----------
+  function render() {
+    var net = thisMonthNet();
+    var totalWrap = document.getElementById("totalWrap");
+    document.getElementById("monthTotalHeader").textContent = (net<0?"-":"") + formatRupee(Math.abs(net));
+    if (totalWrap) totalWrap.classList.toggle("negative", net < 0);
+
+    ["navAdd","navRecords","navSummary"].forEach(function(id){ document.getElementById(id).classList.remove("active"); });
+    document.getElementById("nav" + state.tab[0].toUpperCase() + state.tab.slice(1)).classList.add("active");
+
+    var main = document.getElementById("main");
+    if (state.tab === "add") main.innerHTML = renderAdd();
+    else if (state.tab === "records") main.innerHTML = renderRecords();
+    else main.innerHTML = renderSummary();
+
+    attachHandlers();
+  }
+
+  function typeToggleHtml() {
+    return '<div class="toggle-row type-toggle">' +
+      '<button class="toggle-btn' + (state.type==="expense" ? " active" : "") + '" data-type="expense">💸 Expense</button>' +
+      '<button class="toggle-btn' + (state.type==="income" ? " active" : "") + '" data-type="income">💰 Income</button>' +
+      '<button class="toggle-btn' + (state.type==="other" ? " active" : "") + '" data-type="other">🗂️ Other</button>' +
+      '</div>';
+  }
+
+  function renderAdd() {
+    var f = state.form;
+    var isOther = state.type === "other";
+    var typeLabel = state.type === "expense" ? "expense" : (state.type === "income" ? "income" : "other source");
+
+    var categoryOrSourceHtml;
+    if (isOther) {
+      categoryOrSourceHtml =
+        '<label class="field-label" style="margin-top:16px">Source name</label>' +
+        '<input type="text" id="fSource" placeholder="e.g. loan, subsidy, land lease" value="' + escapeHtml(f.source || "") + '" />';
+    } else {
+      var cats = CATEGORIES_BY_TYPE[state.type];
+      var catButtons = cats.map(function(c){
+        var active = f.category === c.id;
+        return '<button type="button" class="cat-btn' + (active ? " active" : "") + '" data-cat="' + c.id + '" style="' +
+          (active ? "border-color:" + c.color + ";background:" + c.color + "22;" : "") + '">' +
+          '<span class="dot" style="background:' + c.color + '"></span>' +
+          '<span>' + c.label + '</span></button>';
+      }).join("");
+      categoryOrSourceHtml =
+        '<label class="field-label" style="margin-top:16px">Category</label>' +
+        '<div class="cat-grid">' + catButtons + '</div>';
+    }
+
+    var saveLabel = state.editId ? ("✓ Update " + typeLabel) : ("➕ Save " + typeLabel);
+    var cancelBtn = state.editId ? '<button type="button" class="cancel-edit-btn" id="cancelEditBtn">Cancel edit</button>' : "";
+    var otherHint = isOther ? '<div class="install-hint" style="margin-top:0;margin-bottom:16px;text-align:left">Other source entries are kept for record only — they are not counted in your net profit total.</div>' : "";
+
+    return '' +
+      typeToggleHtml() +
+      '<div class="section-title">' + (state.editId ? "Edit " : "Record an ") + typeLabel + '</div>' +
+      otherHint +
+      '<label class="field-label">Date</label>' +
+      '<input type="date" id="fDate" value="' + f.date + '" max="' + todayISO() + '" />' +
+      categoryOrSourceHtml +
+      '<label class="field-label" style="margin-top:16px">Amount</label>' +
+      '<div class="amount-wrap"><span>₹</span><input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="' + f.amount + '" /></div>' +
+      '<label class="field-label" style="margin-top:16px">Note (optional)</label>' +
+      '<input type="text" id="fNote" placeholder="e.g. tractor refuel, 2 workers for weeding" value="' + (f.note||"") + '" />' +
+      (f.error ? '<div class="error-text">' + f.error + '</div>' : '') +
+      '<button class="save-btn" id="saveBtn">' + saveLabel + '</button>' +
+      cancelBtn;
+  }
+
+  function renderRecords() {
+    var items = monthItems();
+    var total = items.reduce(function(s,e){return s+e.amount;},0);
+    var groups = groupByDate(items);
+    var isOther = state.type === "other";
+    var typeLabel = state.type === "expense" ? "expenses" : (state.type === "income" ? "income" : "other source entries");
+
+    var body = groups.length === 0
+      ? '<div class="empty">No ' + typeLabel + ' logged this month yet.</div>'
+      : groups.map(function(g){
+          var d = g[0], list = g[1];
+          var rows = list.map(function(e){
+            var cat = isOther ? null : catById(state.type, e.category);
+            var iconBg = cat ? cat.hex : "#9C8C74";
+            var iconEmoji = cat ? cat.emoji : (isOther ? "🗂️" : "•••");
+            var titleText = cat ? cat.short : (isOther ? escapeHtml(e.source || "Other") : "Unknown");
+            var confirming = state.confirmDelete === e.id;
+            var delControl = confirming
+              ? '<div class="confirm-wrap"><button class="confirm-yes" data-del="' + e.id + '">🗑</button><button class="confirm-no" data-cancel="' + e.id + '">✕</button></div>'
+              : '<div class="row-actions"><button class="edit-btn" data-edit="' + e.id + '">✏️</button><button class="del-btn" data-ask="' + e.id + '">🗑</button></div>';
+            return '<div class="expense-row">' +
+              '<div class="icon-box" style="background:' + iconBg + '33">' + iconEmoji + '</div>' +
+              '<div class="info"><div class="cat-name">' + titleText + '</div>' +
+              (e.note ? '<div class="note">' + escapeHtml(e.note) + '</div>' : '') + '</div>' +
+              '<div class="row-right"><div class="amt">' + formatRupee(e.amount) + '</div>' + delControl + '</div>' +
+              '</div>';
+          }).join("");
+          return '<div><div class="day-label">' + formatDateLabel(d) + '</div>' + rows + '</div>';
+        }).join("");
+
+    var chartSection = isOther ? "" : '<div class="chart-section">' + renderPieSection(items, state.type) + '</div>';
+    var otherNote = isOther ? '<div class="install-hint" style="margin-top:14px">Other source entries are for record only and are not included in your net profit total.</div>' : "";
+
+    return typeToggleHtml() +
+      '<div class="month-nav">' +
+      '<button id="prevMonth">‹</button>' +
+      '<div class="month-center"><div class="m-title">' + MONTHS[state.viewMonth] + ' ' + state.viewYear + '</div>' +
+      '<div class="m-total">' + formatRupee(total) + ' total</div></div>' +
+      '<button id="nextMonth">›</button>' +
+      '</div>' + body + chartSection + otherNote;
+  }
+
+  function renderSummary() {
+    var isOther = state.type === "other";
+    var data = isOther ? sourceTotals(summarySource()) : categoryTotals(summarySource(), state.type);
+    var total = data.reduce(function(s,d){return s+d.value;},0);
+    var monthLabel = MONTHS[state.viewMonth] + ' ' + state.viewYear;
+    var title = state.type === "expense" ? "Where it's going" : (state.type === "income" ? "Where it's coming from" : "Other source breakdown");
+
+    var toggle = '<div class="toggle-row">' +
+      '<button class="toggle-btn' + (state.range==="month"?" active":"") + '" data-range="month">' + monthLabel + '</button>' +
+      '<button class="toggle-btn' + (state.range==="all"?" active":"") + '" data-range="all">All time</button>' +
+      '</div>';
+    var otherNote = isOther ? '<div class="install-hint" style="margin-top:0;margin-bottom:14px;text-align:left">Other source totals are for record only — they are excluded from net profit.</div>' : "";
+
+    if (data.length === 0) {
+      return typeToggleHtml() + '<div class="section-title">' + title + '</div>' + toggle + otherNote +
+        '<div class="empty">Nothing to show yet — log an entry first.</div>';
+    }
+
+    var donutSvg = buildDonut(data, total);
+
+    var legend = data.slice().sort(function(a,b){return b.value-a.value;}).map(function(d){
+      var cat = isOther ? null : catById(state.type, d.id);
+      var hex = cat ? cat.hex : d.color;
+      var emoji = cat ? cat.emoji : "🗂️";
+      var label = cat ? cat.label : escapeHtml(d.name);
+      var pct = total ? Math.round((d.value/total)*100) : 0;
+      return '<div class="legend-row">' +
+        '<div class="icon-box" style="background:' + hex + '33">' + emoji + '</div>' +
+        '<div class="name">' + label + '</div>' +
+        '<div class="pct">' + pct + '%</div>' +
+        '<div class="val">' + formatRupee(d.value) + '</div>' +
+        '</div>';
+    }).join("");
+
+    return typeToggleHtml() + '<div class="section-title">' + title + '</div>' + toggle + otherNote +
+      '<div class="donut-wrap">' + donutSvg +
+      '<div class="donut-center"><div class="amt">' + formatRupee(total) + '</div><div class="lbl">Total</div></div>' +
+      '</div>' +
+      '<div style="margin-top:18px">' + legend + '</div>';
+  }
+
+  function renderPieSection(items, type) {
+    var data = categoryTotals(items, type);
+    var total = data.reduce(function(s,d){return s+d.value;},0);
+    var label = type === "expense" ? "Expenses" : "Income";
+
+    if (data.length === 0) {
+      return '<div class="section-title" style="font-size:16px">' + label + ' by category</div>' +
+        '<div class="empty" style="margin-top:8px">No ' + label.toLowerCase() + ' this month to chart yet.</div>';
+    }
+
+    var donutSvg = buildDonut(data, total);
+    var legend = data.slice().sort(function(a,b){return b.value-a.value;}).map(function(d){
+      var cat = catById(type, d.id);
+      var pct = total ? Math.round((d.value/total)*100) : 0;
+      return '<div class="legend-row">' +
+        '<div class="icon-box" style="background:' + cat.hex + '33">' + cat.emoji + '</div>' +
+        '<div class="name">' + cat.label + '</div>' +
+        '<div class="pct">' + pct + '%</div>' +
+        '<div class="val">' + formatRupee(d.value) + '</div>' +
+        '</div>';
+    }).join("");
+
+    return '<div class="section-title" style="font-size:16px">' + label + ' by category</div>' +
+      '<div class="donut-wrap">' + donutSvg +
+      '<div class="donut-center"><div class="amt">' + formatRupee(total) + '</div><div class="lbl">Total</div></div>' +
+      '</div>' +
+      '<div style="margin-top:12px">' + legend + '</div>';
+  }
+
+  function buildDonut(data, total) {
+    var r = 80, cx = 100, cy = 100, circumference = 2 * Math.PI * r;
+    var offset = 0;
+    var circles = data.map(function(d) {
+      var frac = total ? d.value / total : 0;
+      var len = frac * circumference;
+      var gap = circumference - len;
+      var dasharray = len + " " + gap;
+      var dashoffset = -offset;
+      offset += len;
+      return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + d.color + '" ' +
+        'stroke-width="24" stroke-dasharray="' + dasharray + '" stroke-dashoffset="' + dashoffset + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" />';
+    }).join("");
+    return '<svg width="200" height="200" viewBox="0 0 200 200">' + circles + '</svg>';
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  // ---------- handlers ----------
+  function attachHandlers() {
+    document.querySelectorAll("[data-type]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var newType = btn.getAttribute("data-type");
+        if (newType === state.type) return;
+        state.type = newType;
+        state.editId = null;
+        state.confirmDelete = null;
+        state.form = { date: todayISO(), category: null, source: "", amount: "", note: "", error: "" };
+        render();
+      });
+    });
+
+    if (state.tab === "add") {
+      var isOtherType = state.type === "other";
+      var dateEl = document.getElementById("fDate");
+      var amtEl = document.getElementById("fAmount");
+      var noteEl = document.getElementById("fNote");
+      dateEl.addEventListener("change", function(){ state.form.date = dateEl.value; });
+      amtEl.addEventListener("input", function(){ state.form.amount = amtEl.value; });
+      noteEl.addEventListener("input", function(){ state.form.note = noteEl.value; });
+
+      document.querySelectorAll(".cat-btn").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          state.form.category = btn.getAttribute("data-cat");
+          render();
+        });
+      });
+
+      var sourceEl = document.getElementById("fSource");
+      if (sourceEl) sourceEl.addEventListener("input", function(){ state.form.source = sourceEl.value; });
+
+      document.getElementById("saveBtn").addEventListener("click", function(){
+        var f = state.form;
+        var entry;
+        if (isOtherType) {
+          var sourceName = (f.source || "").trim();
+          if (!sourceName) { f.error = "Enter a source name"; render(); return; }
+          var amtO = parseFloat(f.amount);
+          if (!amtO || amtO <= 0) { f.error = "Enter an amount"; render(); return; }
+          f.error = "";
+          entry = { date: f.date, source: sourceName, amount: amtO, note: (f.note||"").trim() };
+        } else {
+          if (!f.category) { f.error = "Pick a category"; render(); return; }
+          var amt = parseFloat(f.amount);
+          if (!amt || amt <= 0) { f.error = "Enter an amount"; render(); return; }
+          f.error = "";
+          entry = { date: f.date, category: f.category, amount: amt, note: (f.note||"").trim() };
+        }
+        var colName = collectionNameFor(state.type);
+        var wasEditing = !!state.editId;
+
+        if (state.editId) {
+          updateDoc(doc(db, colName, state.editId), entry).catch(function(err){ console.error("update failed", err); });
+        } else {
+          entry.createdAt = Date.now();
+          var colRef = state.type === "expense" ? expensesCol : (state.type === "income" ? incomesCol : othersCol);
+          addDoc(colRef, entry).catch(function(err){ console.error("add failed", err); });
+        }
+
+        state.editId = null;
+        state.form = { date: todayISO(), category: null, source: "", amount: "", note: "", error: "" };
+        render();
+
+        var btn = document.getElementById("saveBtn");
+        if (btn) {
+          var typeLabel = state.type === "expense" ? "expense" : (state.type === "income" ? "income" : "other source");
+          btn.classList.add("flash");
+          btn.innerHTML = wasEditing ? "✓ Updated" : "✓ Saved";
+          setTimeout(function(){
+            var b = document.getElementById("saveBtn");
+            if (b) { b.classList.remove("flash"); b.innerHTML = "➕ Save " + typeLabel; }
+          }, 1200);
+        }
+      });
+
+      var cancelEditBtn = document.getElementById("cancelEditBtn");
+      if (cancelEditBtn) {
+        cancelEditBtn.addEventListener("click", function(){
+          state.editId = null;
+          state.form = { date: todayISO(), category: null, source: "", amount: "", note: "", error: "" };
+          render();
+        });
+      }
+    }
+
+    if (state.tab === "records") {
+      document.getElementById("prevMonth").addEventListener("click", function(){ shiftMonth(-1); });
+      document.getElementById("nextMonth").addEventListener("click", function(){ shiftMonth(1); });
+
+      document.querySelectorAll("[data-edit]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          var id = btn.getAttribute("data-edit");
+          var source = currentTypeItems();
+          var target = null;
+          for (var i = 0; i < source.length; i++) { if (source[i].id === id) { target = source[i]; break; } }
+          if (!target) return;
+          state.editId = id;
+          state.form = { date: target.date, category: target.category, source: target.source || "", amount: String(target.amount), note: target.note || "", error: "" };
+          state.tab = "add";
+          render();
+        });
+      });
+
+      document.querySelectorAll("[data-ask]").forEach(function(btn){
+        btn.addEventListener("click", function(){ state.confirmDelete = btn.getAttribute("data-ask"); render(); });
+      });
+      document.querySelectorAll("[data-cancel]").forEach(function(btn){
+        btn.addEventListener("click", function(){ state.confirmDelete = null; render(); });
+      });
+      document.querySelectorAll("[data-del]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          var id = btn.getAttribute("data-del");
+          var colName = collectionNameFor(state.type);
+          deleteDoc(doc(db, colName, id)).catch(function(err){ console.error("delete failed", err); });
+          if (state.editId === id) { state.editId = null; }
+          state.confirmDelete = null;
+          render();
+        });
+      });
+    }
+
+    if (state.tab === "summary") {
+      document.querySelectorAll("[data-range]").forEach(function(btn){
+        btn.addEventListener("click", function(){ state.range = btn.getAttribute("data-range"); render(); });
+      });
+    }
+  }
+
+  function shiftMonth(delta) {
+    var m = state.viewMonth + delta, y = state.viewYear;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    state.viewMonth = m; state.viewYear = y;
+    render();
+  }
+
+  document.getElementById("navAdd").addEventListener("click", function(){ state.tab = "add"; render(); });
+  document.getElementById("navRecords").addEventListener("click", function(){ state.tab = "records"; render(); });
+  document.getElementById("navSummary").addEventListener("click", function(){ state.tab = "summary"; render(); });
+
+  render();
+
+  var syncedFlags = { expenses: false, incomes: false };
+  function updateSyncTag(fromCache) {
+    var tagText = document.getElementById("syncTagText");
+    if (tagText) tagText.textContent = fromCache ? "Offline — will sync" : "Synced live";
+  }
+
+  onSnapshot(
+    expensesCol,
+    function (snapshot) {
+      state.expenses = snapshot.docs
+        .map(function (d) {
+          var data = d.data();
+          data.id = d.id;
+          return data;
+        })
+        .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      updateSyncTag(snapshot.metadata.fromCache);
+      render();
+    },
+    function (err) {
+      console.error("sync error", err);
+      updateSyncTag(true);
+    }
+  );
+
+  onSnapshot(
+    incomesCol,
+    function (snapshot) {
+      state.incomes = snapshot.docs
+        .map(function (d) {
+          var data = d.data();
+          data.id = d.id;
+          return data;
+        })
+        .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      updateSyncTag(snapshot.metadata.fromCache);
+      render();
+    },
+    function (err) {
+      console.error("sync error", err);
+      updateSyncTag(true);
+    }
+  );
+
+  onSnapshot(
+    othersCol,
+    function (snapshot) {
+      state.others = snapshot.docs
+        .map(function (d) {
+          var data = d.data();
+          data.id = d.id;
+          return data;
+        })
+        .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      updateSyncTag(snapshot.metadata.fromCache);
+      render();
+    },
+    function (err) {
+      console.error("sync error", err);
+      updateSyncTag(true);
+    }
+  );
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
